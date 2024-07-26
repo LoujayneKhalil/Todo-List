@@ -8,6 +8,9 @@ logging.basicConfig(filename='app.log', level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+###############################################################################################################
+##############################################  Categories CRUD  ##############################################
+
 def get_categories(db: Session, skip: int = 0, limit: int = 10):
     logger.info(f"Fetching categories with skip={skip}, limit={limit}")
     try:
@@ -87,3 +90,6 @@ def delete_category(db: Session, category_id: int):
         logger.error(f"An unexpected error occurred: {e}")
         raise
     
+    
+################################################################################################################
+#################################################  Tasks CRUD  #################################################
