@@ -71,7 +71,7 @@ A ToDo List application built with React.js, Redux, FastAPI, and PostgreSQL. Thi
 1. **Clone the repository**:
 
    ```bash
-   git clone https://github.com/yourusername/todo-list-app.git
+   git clone https://github.com/LoujayneKhalil/Todo-List.git
    cd todo-list-app/backend
    ```
 
