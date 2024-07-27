@@ -13,9 +13,11 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+
 @router.get("/categories/", response_model=List[CategorySchema])
 def read_categories(skip: int = 0, limit: int = 10, db: Session = Depends(get_db)):
-    logger.info(f"Request to fetch categories with skip={skip} and limit={limit}")
+    logger.info(f"Request to fetch categories with skip={
+                skip} and limit={limit}")
     try:
         categories = get_categories(db, skip=skip, limit=limit)
         return categories
@@ -32,6 +34,7 @@ def read_category(category_id: int, db: Session = Depends(get_db)):
     logger.info(f"Request to fetch category with ID: {category_id}")
     db_category = get_category(db, category_id=category_id)
     if db_category is None:
+        logger.error(f"Category with ID {category_id} not found")
         raise HTTPException(status_code=404, detail="Category not found")
     return db_category
 
@@ -56,7 +59,7 @@ def update_category_endpoint(category_id: int, category: CategoryCreate, db: Ses
     if db_category is None:
         logger.error(f"Category with ID {category_id} not found for update")
         raise HTTPException(status_code=404, detail="Category not found")
-    return update_category(db=db,category_id=category_id, category=category)
+    return update_category(db=db, category_id=category_id, category=category)
 
 
 @router.delete("/categories/{category_id}")
