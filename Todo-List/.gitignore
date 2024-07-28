@@ -139,3 +139,10 @@ dmypy.json
 *.temp
 *.tmp
 index.html
+
+
+# Node.js
+node_modules/
+build/
+dist/
+.env
