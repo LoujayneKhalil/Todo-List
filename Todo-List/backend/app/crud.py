@@ -15,7 +15,10 @@ logger = logging.getLogger(__name__)
 def get_categories(db: Session, skip: int = 0, limit: int = 10):
     logger.info(f"Fetching categories with skip={skip}, limit={limit}")
     try:
-        return db.query(Category).offset(skip).limit(limit).all()
+        categories = db.query(Category).order_by(Category.id.asc()).offset(skip).limit(limit).all()
+        for category in categories:
+            category.tasks = db.query(Task).filter(Task.category_id == category.id).order_by(Task.task_order.asc()).all()
+        return categories
     except SQLAlchemyError as e:
         logger.error(f"Database error occurred: {e}")
         raise

@@ -45,4 +45,10 @@ def delete_task_endpoint(task_id: int, db: Session = Depends(get_db)):
     if db_task is None:
         logger.error(f"Task with ID {task_id} not found")
         raise HTTPException(status_code=404, detail="Task not found")
-    return delete_task(db, task_id=task_id)
+    category_id = db_task.category_id
+    
+    delete_result = delete_task(db, task_id=task_id)
+    if delete_result is None:
+        raise HTTPException(status_code=404, detail="Task not found for deletion")
+
+    return {"id": task_id, "category_id": category_id, "message": delete_result["message"]}
