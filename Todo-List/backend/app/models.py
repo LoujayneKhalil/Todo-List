@@ -7,6 +7,7 @@ class Category(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True)
+    category_order = Column(Integer, index=True, nullable=False)
     tasks = relationship("Task", back_populates="category", cascade="all, delete")
     
     

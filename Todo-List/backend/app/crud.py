@@ -41,7 +41,7 @@ def get_category(db: Session, category_id: int):
 def create_category(db: Session, category: CategoryCreate):
     logger.info(f"Creating category with name: {category.name}")
     try:
-        db_category = Category(name=category.name)
+        db_category = Category(name=category.name, category_order=category.category_order)
         db.add(db_category)
         db.commit()
         db.refresh(db_category)
@@ -62,6 +62,7 @@ def update_category(db: Session, category_id: int, category: CategoryUpdate):
         if not db_category:
             return None
         db_category.name = category.name
+        db.category_order = category.category_order
         db.commit()
         db.refresh(db_category)
         return db_category

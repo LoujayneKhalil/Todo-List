@@ -22,6 +22,7 @@ class Task(TaskBase):
 
 class CategoryBase(BaseModel):
     name: str
+    category_order: int
     
     
 class CategoryCreate(CategoryBase):
