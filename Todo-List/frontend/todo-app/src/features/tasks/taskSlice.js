@@ -110,7 +110,9 @@ const taskSlice = createSlice({
     error: null, // Error message if the fetch fails
   },
   reducers: {
-    // Define reducers if needed for additional functionality
+    setCategories: (state, action) => {
+      state.categories = action.payload;
+    }
   },
   extraReducers: (builder) => {
     builder
@@ -201,5 +203,7 @@ const taskSlice = createSlice({
       });
   },
 });
+
+export const { setCategories } = taskSlice.actions;
 
 export default taskSlice.reducer;

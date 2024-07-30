@@ -8,6 +8,7 @@ import {
   addTask,
   updateTask,
   deleteTask,
+  setCategories,
 } from "../features/tasks/taskSlice";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
@@ -30,7 +31,7 @@ const AdminScreen = () => {
   const [editedTaskTitle, setEditedTaskTitle] = useState("");
   const [editedTaskDescription, setEditedTaskDescription] = useState("");
   const [editedTaskOrder, setEditedTaskOrder] = useState(null);
-  const [editedTaskCategoryId, setEditedTaskCategoryId] = useState()
+  const [editedTaskCategoryId, setEditedTaskCategoryId] = useState();
 
   useEffect(() => {
     dispatch(fetchTasks());
@@ -52,45 +53,73 @@ const AdminScreen = () => {
     }));
   };
 
+
   const onDragEnd = (result) => {
     if (!result.destination) return;
-
+  
     const { source, destination } = result;
-
-    if (source.droppableId === destination.droppableId) {
-      const category = categories.find(
-        (cat) => cat.id.toString() === source.droppableId
-      );
-
-      const [movedTask] = category.tasks.splice(source.index, 1);
-      category.tasks.splice(destination.index, 0, movedTask);
-
-      // Here you can update task orders if necessary
+    const sourceCategoryIndex = categories.findIndex(
+      (cat) => cat.id.toString() === source.droppableId
+    );
+    const destinationCategoryIndex = categories.findIndex(
+      (cat) => cat.id.toString() === destination.droppableId
+    );
+  
+    // Clone the categories array to avoid direct state mutation
+    const updatedCategories = [...categories];
+    const sourceCategory = updatedCategories[sourceCategoryIndex];
+    const destinationCategory = updatedCategories[destinationCategoryIndex];
+  
+    // Clone the tasks array for source and destination categories
+    const sourceTasks = sourceCategory.tasks.map(task => ({ ...task }));
+    const destinationTasks = sourceCategory === destinationCategory ? sourceTasks : destinationCategory.tasks.map(task => ({ ...task }));
+  
+    // Remove the task from the source
+    const [movedTask] = sourceTasks.splice(source.index, 1);
+    // Add the task to the destination
+    destinationTasks.splice(destination.index, 0, movedTask);
+  
+    // Ensure unique task_order within each category
+    const updateTaskOrders = (tasks) => {
+      tasks.forEach((task, index) => {
+        task.task_order = index + 1;  // Ensure task_order is mutable
+      });
+    };
+  
+    updateTaskOrders(sourceTasks);
+    updateTaskOrders(destinationTasks);
+  
+    if (sourceCategory !== destinationCategory) {
+      // Update the categories array with the modified tasks arrays
+      updatedCategories[sourceCategoryIndex] = { ...sourceCategory, tasks: sourceTasks };
+      updatedCategories[destinationCategoryIndex] = { ...destinationCategory, tasks: destinationTasks };
+  
+      movedTask.category_id = destinationCategory.id;
     } else {
-      // Handle moving task between categories
-      const sourceCategory = categories.find(
-        (cat) => cat.id.toString() === source.droppableId
-      );
-      const destCategory = categories.find(
-        (cat) => cat.id.toString() === destination.droppableId
-      );
-
-      const [movedTask] = sourceCategory.tasks.splice(source.index, 1);
-      destCategory.tasks.splice(destination.index, 0, movedTask);
-
-      // Here you should update the moved task's category_id and order
-      dispatch(
-        updateTask({
-          taskId: movedTask.id,
-          title: movedTask.title,
-          description: movedTask.description,
-          task_order: destination.index, // or calculate based on new order
-          category_id: destCategory.id,
-        })
-      );
+      // Update the categories array with the modified tasks array for the source category
+      updatedCategories[sourceCategoryIndex] = { ...sourceCategory, tasks: destinationTasks };
     }
+  
+    // Dispatch update actions for all tasks in the updated categories
+    updatedCategories.forEach((category) => {
+      category.tasks.forEach((task) => {
+        dispatch(
+          updateTask({
+            taskId: task.id,
+            title: task.title,
+            description: task.description,
+            taskOrder: task.task_order,
+            categoryId: task.category_id,
+          })
+        );
+      });
+    });
+  
+    // Update the local state with the new categories
+    dispatch(setCategories(updatedCategories));
   };
-
+  
+  
   const handleAddCategory = () => {
     if (newCategoryName.trim()) {
       dispatch(addCategory(newCategoryName));
@@ -124,19 +153,22 @@ const AdminScreen = () => {
       console.error("Category not found");
       return;
     }
-  
-    const maxTaskOrder = Math.max(0, ...category.tasks.map((task) => task.task_order));
+
+    const maxTaskOrder = Math.max(
+      0,
+      ...category.tasks.map((task) => task.task_order)
+    );
     console.log("Max task order", maxTaskOrder);
-  
+
     dispatch(
       addTask({
         categoryId, // Ensure categoryId is passed
         title: newTaskTitle,
         description: newTaskDescription,
-        taskOrder: maxTaskOrder + 10, // Ensure taskOrder is passed
+        taskOrder: maxTaskOrder + 1, // Ensure taskOrder is passed
       })
     );
-  
+
     setNewTaskTitle("");
     setNewTaskDescription("");
     setIsAddingTask(null); // Reset adding task state
@@ -166,7 +198,6 @@ const AdminScreen = () => {
   const handleDeleteTask = (taskId) => {
     dispatch(deleteTask(taskId));
   };
-
 
   if (status === "loading") {
     return <div>Loading...</div>;
@@ -398,150 +429,155 @@ const AdminScreen = () => {
                         </div>
                       )}
                       <Droppable droppableId={category.id.toString()}>
-                        {(provided) => (
-                          <div
-                            className="space-y-2 p-6 pt-0"
-                            ref={provided.innerRef}
-                            {...provided.droppableProps}
-                          >
-                            {category.tasks.map((task, index) => (
-                              <Draggable
-                                key={task.id}
-                                draggableId={task.id.toString()}
-                                index={index}
-                              >
-                                {(provided) => (
-                                  <div
-                                    className="flex items-center p-4 bg-gray-100 rounded-md h-24 flex items-center justify-between"
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                  >
-                                    <div className="flex items-center justify-between">
+                        {(provided) => {
+                          // console.log("Draggable provided:", provided);
+                          return (
+                            <div
+                              className="space-y-2 p-6 pt-0"
+                              ref={provided.innerRef}
+                              {...provided.droppableProps}
+                            >
+                              {category.tasks.map((task, index) => (
+                                <Draggable
+                                  key={task.id}
+                                  draggableId={task.id.toString()}
+                                  index={index}
+                                >
+                                  {(provided) => {
+                                    // console.log("Draggable provided 2:", provided);
+                                    return (
                                       <div
-                                        className="cursor-move"
-                                        {...provided.dragHandleProps}
+                                        className="flex items-center p-4 bg-gray-100 rounded-md h-24 flex items-center justify-between"
+                                        ref={provided.innerRef}
+                                        {...provided.draggableProps}
                                       >
-                                        <svg
-                                          className="w-8 h-8 text-gray-500"
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          fill="none"
-                                          viewBox="0 0 20 20"
-                                          stroke="currentColor"
-                                          aria-hidden="true"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            strokeWidth="2.5"
-                                            d="M4 4h.01M8 4h.01M4 8h.01M8 8h.01M4 12h.01M8 12h.01"
-                                          />
-                                        </svg>
-                                      </div>
-                                      <input
-                                        type="checkbox"
-                                        className="form-checkbox h-4 w-4 text-blue-600"
-                                      />
-                                      <div className="ml-3 overflow-hidden">
-                                        {editingTaskId === task.id ? (
-                                          <>
-                                            <input
-                                              type="text"
-                                              value={editedTaskTitle}
-                                              onChange={(e) =>
-                                                setEditedTaskTitle(
-                                                  e.target.value
-                                                )
-                                              }
-                                              className="text-lg font-medium border-b-2 border-gray-300 focus:outline-none"
-                                            />
-                                            <textarea
-                                              value={editedTaskDescription}
-                                              onChange={(e) =>
-                                                setEditedTaskDescription(
-                                                  e.target.value
-                                                )
-                                              }
-                                              className="text-sm font-medium border-b-2 border-gray-300 focus:outline-none"
-                                            />
-                                            <button
-                                              onClick={() =>
-                                                handleSaveTask(task.id)
-                                              }
-                                              className="text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5"
+                                        <div className="flex items-center justify-between">
+                                          <div
+                                            className="cursor-move"
+                                            {...provided.dragHandleProps}
+                                          >
+                                            <svg
+                                              className="w-8 h-8 text-gray-500"
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              fill="none"
+                                              viewBox="0 0 20 20"
+                                              stroke="currentColor"
+                                              aria-hidden="true"
                                             >
-                                              Save
-                                            </button>
-                                            <button
-                                              onClick={() =>
-                                                setEditingTaskId(null)
-                                              }
-                                              className="text-white bg-red-700 hover:bg-red-800 font-medium rounded-lg text-sm px-5 py-2.5 ml-2"
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth="2.5"
+                                                d="M4 4h.01M8 4h.01M4 8h.01M8 8h.01M4 12h.01M8 12h.01"
+                                              />
+                                            </svg>
+                                          </div>
+                                          <input
+                                            type="checkbox"
+                                            className="form-checkbox h-4 w-4 text-blue-600"
+                                          />
+                                          <div className="ml-3 overflow-hidden">
+                                            {editingTaskId === task.id ? (
+                                              <>
+                                                <input
+                                                  type="text"
+                                                  value={editedTaskTitle}
+                                                  onChange={(e) =>
+                                                    setEditedTaskTitle(
+                                                      e.target.value
+                                                    )
+                                                  }
+                                                  className="text-lg font-medium border-b-2 border-gray-300 focus:outline-none"
+                                                />
+                                                <textarea
+                                                  value={editedTaskDescription}
+                                                  onChange={(e) =>
+                                                    setEditedTaskDescription(
+                                                      e.target.value
+                                                    )
+                                                  }
+                                                  className="text-sm font-medium border-b-2 border-gray-300 focus:outline-none"
+                                                />
+                                                <button
+                                                  onClick={() =>
+                                                    handleSaveTask(task.id)
+                                                  }
+                                                  className="text-white bg-blue-700 hover:bg-blue-800 font-medium rounded-lg text-sm px-5 py-2.5"
+                                                >
+                                                  Save
+                                                </button>
+                                                <button
+                                                  onClick={() =>
+                                                    setEditingTaskId(null)
+                                                  }
+                                                  className="text-white bg-red-700 hover:bg-red-800 font-medium rounded-lg text-sm px-5 py-2.5 ml-2"
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <h3 className="text-lg font-medium">
+                                                  {task.title}
+                                                </h3>
+                                                <p className="text-gray-600">
+                                                  {task.description}
+                                                </p>
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                          <button
+                                            className="flex justify-between items-center p-2 my-1 text-sm text-gray-900  bg-gray-100 rounded-md hover:bg-gray-100 dark:bg-gray-100 dark:text-gray-700 dark:hover:text-white dark:hover:bg-gray-400 font-medium taskEditBtn"
+                                            onClick={() => handleEditTask(task)}
+                                          >
+                                            <svg
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              strokeWidth="1.5"
+                                              stroke="currentColor"
+                                              className="w-6 h-6"
                                             >
-                                              Cancel
-                                            </button>
-                                          </>
-                                        ) : (
-                                          <>
-                                            <h3 className="text-lg font-medium">
-                                              {task.title}
-                                            </h3>
-                                            <p className="text-gray-600">
-                                              {task.description}
-                                            </p>
-                                          </>
-                                        )}
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+                                              />
+                                            </svg>
+                                          </button>
+                                          <button
+                                            className="p-2.5 my-1 text-sm font-medium text-white"
+                                            onClick={() =>
+                                              handleDeleteTask(task.id)
+                                            }
+                                          >
+                                            <svg
+                                              xmlns="http://www.w3.org/2000/svg"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              strokeWidth="1.5"
+                                              stroke="currentColor"
+                                              className="w-6 h-6 text-red-500 hover:text-red-900"
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
+                                              />
+                                            </svg>
+                                          </button>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <button
-                                        className="flex justify-between items-center p-2 my-1 text-sm text-gray-900  bg-gray-100 rounded-md hover:bg-gray-100 dark:bg-gray-100 dark:text-gray-700 dark:hover:text-white dark:hover:bg-gray-400 font-medium taskEditBtn"
-                                        onClick={() =>
-                                          handleEditTask(task)
-                                        }
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          strokeWidth="1.5"
-                                          stroke="currentColor"
-                                          className="w-6 h-6"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
-                                          />
-                                        </svg>
-                                      </button>
-                                      <button
-                                        className="p-2.5 my-1 text-sm font-medium text-white"
-                                        onClick={() => handleDeleteTask(task.id)
-                                        }
-                                      >
-                                        <svg
-                                          xmlns="http://www.w3.org/2000/svg"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          strokeWidth="1.5"
-                                          stroke="currentColor"
-                                          className="w-6 h-6 text-red-500 hover:text-red-900"
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"
-                                          />
-                                        </svg>
-                                      </button>
-                                    </div>
-                                  </div>
-                                )}
-                              </Draggable>
-                            ))}
-                            {provided.placeholder}
-                          </div>
-                        )}
+                                    );
+                                  }}
+                                </Draggable>
+                              ))}
+                              {provided.placeholder}
+                            </div>
+                          );
+                        }}
                       </Droppable>
                     </>
                   )}
